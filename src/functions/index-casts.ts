@@ -1,7 +1,11 @@
+//import { getSSLHubRpcClient } from '@farcaster/hub-nodejs'
+
 import got from 'got'
 
+import { GetTokenBalanceQuery } from '../graphql/token-balance.js'
 import { MERKLE_REQUEST_OPTIONS } from '../merkle.js'
-import supabase from '../supabase.js'
+import supabase from '../supabase'
+// import supabase from '../supabase.js'
 import { Cast, FlattenedCast, MerkleResponse } from '../types/index'
 import { breakIntoChunks } from '../utils.js'
 
@@ -11,13 +15,16 @@ import { breakIntoChunks } from '../utils.js'
  */
 export async function indexAllCasts(limit?: number) {
   const startTime = Date.now()
+  // build get all casts again using hub event processing
   const allCasts = await getAllCasts(limit)
   const cleanedCasts = cleanCasts(allCasts)
 
+  // redo this mapping to add additional data that you want
   const formattedCasts: FlattenedCast[] = cleanedCasts.map((c) => {
     const cast: FlattenedCast = {
       hash: c.hash,
       thread_hash: c.threadHash,
+      parent_url: '',
       parent_hash: c.parentHash || null,
       author_fid: c.author.fid,
       author_username: c.author.username || null,
@@ -106,6 +113,18 @@ async function getAllCasts(limit?: number): Promise<Cast[]> {
 
   return allCasts
 }
+
+// /**
+//  * Get the latest casts from Hub. 100k casts every ~35 seconds on local machine.
+//  * @param limit The maximum number of casts to return. If not provided, all casts will be returned.
+//  * @returns An array of all casts on Farcaster
+//  */
+//  async function getAllCastsFromHub(limit?: number): Promise<Cast[]> {
+//   let hubRpcEndpoint = 'your-hub-id.hubs.neynar.com:2283'
+//   let client = getSSLHubRpcClient(hubRpcEndpoint)
+
+//   client.subscribe()
+// }
 
 /**
  * Helper function to build the profile endpoint with a cursor

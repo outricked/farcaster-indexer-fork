@@ -105,6 +105,7 @@ export interface FlattenedCast {
   thread_hash_v1?: string
   parent_hash: string | null
   parent_hash_v1?: string | null
+  parent_url: string | null
   author_fid: number
   author_username: string | null
   author_display_name: string

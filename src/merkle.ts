@@ -1,7 +1,7 @@
 const MERKLE_SECRET = process.env.MERKLE_SECRET
 
 if (!MERKLE_SECRET) {
-  throw new Error('Missing Merkle environment variables')
+  console.warn('Missing Merkle environment variables')
 }
 
 export const MERKLE_HEADERS = {

@@ -1,3 +1,4 @@
+// id register concept explained here: https://docs.farcaster.xyz/protocol/architecture.html#id-registry
 export const idRegistryAddr = '0xda107a1caf36d198b12c16c7b6a1d1c795978c42'
 
 export const idRegistryAbi = [
