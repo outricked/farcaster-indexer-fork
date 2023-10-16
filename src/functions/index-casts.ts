@@ -1,13 +1,10 @@
 //import { getSSLHubRpcClient } from '@farcaster/hub-nodejs'
 
 import got from 'got'
-
-import { GetTokenBalanceQuery } from '../graphql/token-balance.js'
-import { MERKLE_REQUEST_OPTIONS } from '../merkle.js'
-import supabase from '../supabase'
-// import supabase from '../supabase.js'
-import { Cast, FlattenedCast, MerkleResponse } from '../types/index'
-import { breakIntoChunks } from '../utils.js'
+import {NEYNAR_API_KEY} from '../merkle.js'
+import supabase from '../supabase.js'
+import {NeynarCast, NeynarFeedResponse} from '../types'
+import {breakIntoChunks} from '../utils.js'
 
 /**
  * Index the casts from all Farcaster profiles and insert them into Supabase
@@ -19,42 +16,8 @@ export async function indexAllCasts(limit?: number) {
   const allCasts = await getAllCasts(limit)
   const cleanedCasts = cleanCasts(allCasts)
 
-  // redo this mapping to add additional data that you want
-  const formattedCasts: FlattenedCast[] = cleanedCasts.map((c) => {
-    const cast: FlattenedCast = {
-      hash: c.hash,
-      thread_hash: c.threadHash,
-      parent_url: '',
-      parent_hash: c.parentHash || null,
-      author_fid: c.author.fid,
-      author_username: c.author.username || null,
-      author_display_name: c.author.displayName,
-      author_pfp_url: c.author.pfp?.url || null,
-      author_pfp_verified: c.author.pfp?.verified || false,
-      text: c.text,
-      published_at: new Date(c.timestamp),
-      mentions: c.mentions || null,
-      replies_count: c.replies.count,
-      reactions_count: c.reactions.count,
-      recasts_count: c.recasts.count,
-      watches_count: c.watches.count,
-      parent_author_fid: c.parentAuthor?.fid || null,
-      parent_author_username: c.parentAuthor?.username || null,
-      deleted: false,
-    }
-
-    // Retain v1 hashes for backwards compatibility (remove after 3/21/2023)
-    if (c._hashV1) {
-      cast.hash_v1 = c._hashV1
-      cast.thread_hash_v1 = c._threadHashV1
-      cast.parent_hash_v1 = c._parentHashV1 || null
-    }
-
-    return cast
-  })
-
   // Break formattedCasts into chunks of 1000
-  const chunks = breakIntoChunks(formattedCasts, 1000)
+  const chunks = breakIntoChunks(cleanedCasts, 1000)
 
   // Upsert each chunk into the Supabase table
   for (const chunk of chunks) {
@@ -71,9 +34,20 @@ export async function indexAllCasts(limit?: number) {
   const duration = (endTime - startTime) / 1000
 
   if (duration > 60) {
-    // If it takes more than 60 seconds, log the duration so we can optimize
-    console.log(`Updated ${formattedCasts.length} casts in ${duration} seconds`)
+    // If it takes more than 60 seconds, log the duration, so we can optimize
+    console.log(`Updated ${cleanedCasts.length} casts in ${duration} seconds`)
   }
+}
+
+interface NeynarParams {
+  api_key: string;
+  fid?: string;
+  feed_type?: string;
+  filter_type?: string;
+  parent_url?: string;
+  fids?: string;
+  cursor?: string;
+  limit?: number;
 }
 
 /**
@@ -81,15 +55,21 @@ export async function indexAllCasts(limit?: number) {
  * @param limit The maximum number of casts to return. If not provided, all casts will be returned.
  * @returns An array of all casts on Farcaster
  */
-async function getAllCasts(limit?: number): Promise<Cast[]> {
-  const allCasts: Cast[] = new Array()
-  let endpoint = buildCastEndpoint()
+export async function getAllCasts(limit?: number): Promise<NeynarCast[]> {
+  const allCasts: NeynarCast[] = []
+  let params: NeynarParams = {
+    api_key: NEYNAR_API_KEY,
+    feed_type: "filter",
+    filter_type: "parent_url",
+    parent_url: "chain://eip155:7777777/erc721:0x5a5ddb8a2d1ee3d8e9fd59785da88d573d1a84fe",
+    limit: 150
+  }
 
   while (true) {
-    const _response = await got(endpoint, MERKLE_REQUEST_OPTIONS).json()
+    const _response = await buildCastEndpointNeynar(params)
 
-    const response = _response as MerkleResponse
-    const casts = response.result.casts
+    const response = _response as NeynarFeedResponse
+    const casts = response.casts
 
     if (!casts) throw new Error('No casts found')
 
@@ -105,7 +85,14 @@ async function getAllCasts(limit?: number): Promise<Cast[]> {
     // If there are more casts, get the next page
     const cursor = response.next?.cursor
     if (cursor) {
-      endpoint = buildCastEndpoint(cursor)
+      params = {
+        api_key: NEYNAR_API_KEY,
+        feed_type: "filter",
+        filter_type: "parent_url",
+        parent_url: "chain://eip155:7777777/erc721:0x5a5ddb8a2d1ee3d8e9fd59785da88d573d1a84fe",
+        limit: 150,
+        cursor: cursor
+      }
     } else {
       break
     }
@@ -114,49 +101,28 @@ async function getAllCasts(limit?: number): Promise<Cast[]> {
   return allCasts
 }
 
-// /**
-//  * Get the latest casts from Hub. 100k casts every ~35 seconds on local machine.
-//  * @param limit The maximum number of casts to return. If not provided, all casts will be returned.
-//  * @returns An array of all casts on Farcaster
-//  */
-//  async function getAllCastsFromHub(limit?: number): Promise<Cast[]> {
-//   let hubRpcEndpoint = 'your-hub-id.hubs.neynar.com:2283'
-//   let client = getSSLHubRpcClient(hubRpcEndpoint)
-
-//   client.subscribe()
-// }
 
 /**
- * Helper function to build the profile endpoint with a cursor
- * @param cursor
+ * Helper function to get casts from Neynar
+ * @param params
  */
-function buildCastEndpoint(cursor?: string): string {
-  return `https://api.warpcast.com/v2/recent-casts?limit=1000${
-    cursor ? `&cursor=${cursor}` : ''
-  }`
+async function buildCastEndpointNeynar(params: NeynarParams):  Promise<JSON>{
+  const endpoint = "https://api.neynar.com/v2/farcaster/feed"
+  // Filter out undefined properties from params
+  const definedParams: Record<string, string | number> = Object.fromEntries(
+      Object.entries(params).filter(([_, value]) => value !== undefined)
+  );
+  const response = await got(endpoint, {searchParams: definedParams})
+  return JSON.parse(response.body)
 }
 
-function cleanCasts(casts: Cast[]): Cast[] {
-  const cleanedCasts: Cast[] = new Array()
+function cleanCasts(casts: NeynarCast[]): NeynarCast[] {
+  const cleanedCasts: NeynarCast[] = []
 
   for (const cast of casts) {
     // Remove recasts
     if (cast.text.startsWith('recast:farcaster://')) continue
-
     // TODO: find way to remove deleted casts
-
-    // Remove some data from mentions
-    if (cast.mentions) {
-      cast.mentions = cast.mentions.map((m) => {
-        return {
-          fid: m.fid,
-          username: m.username,
-          displayName: m.displayName,
-          pfp: m.pfp,
-        }
-      })
-    }
-
     cleanedCasts.push(cast)
   }
 

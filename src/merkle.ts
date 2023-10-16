@@ -1,14 +1,6 @@
-const MERKLE_SECRET = process.env.MERKLE_SECRET
-
-if (!MERKLE_SECRET) {
-  console.warn('Missing Merkle environment variables')
+if (!process.env["API_KEY"]) {
+  console.error('Missing NEYNAR API KEY environment variables')
 }
 
-export const MERKLE_HEADERS = {
-  Authorization: `Bearer ${MERKLE_SECRET}`,
-  'Content-Type': 'application/json',
-}
-
-export const MERKLE_REQUEST_OPTIONS = {
-  headers: MERKLE_HEADERS,
-}
+export const NEYNAR_API_KEY = process.env["API_KEY"] as string
+export const MERKLE_REQUEST_OPTIONS = {}

@@ -1,9 +1,16 @@
 export interface MerkleResponse {
   result: {
-    casts?: Cast[]
+    casts?: NeynarCast[]
     users?: Profile[]
     verifications?: Verification[]
   }
+  next?: {
+    cursor: string
+  }
+}
+
+export interface NeynarFeedResponse {
+  casts?: NeynarCast[]
   next?: {
     cursor: string
   }
@@ -37,46 +44,51 @@ export interface Profile {
   referrerUsername?: string
 }
 
-export interface Cast {
+export interface NeynarCast {
   hash: string
-  _hashV1?: string
-  threadHash: string
-  _threadHashV1?: string
+  threadHash: string | null
   parentHash: string | null
-  _parentHashV1?: string | null
+  parentUrl: string | null
+  parent_author: string | null
   author: {
     fid: number
-    username: string
-    displayName: string
-    pfp?: PFP
+    custodyAddress: string | null
+    username: string | null
+    displayName: string | null
+    pfp_url: string | null
     profile?: {
       bio: {
         text: string
-        mentions: Array<string>
       }
     }
     followerCount?: number
     followingCount?: number
+    verifications: [string]
+    activeStatus: string
   }
   text: string
   timestamp: number
-  mentions?: ProfileCore[]
+  embeds: Embed[]
   replies: {
     count: number
   }
   reactions: {
-    count: number
+    likes: Like[]
+    recasts: Recast[]
   }
-  recasts: {
-    count: number
-    recasters: Array<any>
-  }
-  watches: {
-    count: number
-  }
-  parentAuthor?: Profile
 }
 
+export interface Like {
+  fids: number
+}
+
+export interface Recast {
+  fids: number
+  fname: string
+}
+export interface Embed {
+  url: string | null
+}
 export interface Verification {
   fid: number
   address: string
@@ -100,11 +112,8 @@ export interface FlattenedProfile {
 
 export interface FlattenedCast {
   hash: string
-  hash_v1?: string
-  thread_hash: string
-  thread_hash_v1?: string
+  thread_hash: string | null
   parent_hash: string | null
-  parent_hash_v1?: string | null
   parent_url: string | null
   author_fid: number
   author_username: string | null
@@ -117,9 +126,6 @@ export interface FlattenedCast {
   replies_count: number
   reactions_count: number
   recasts_count: number
-  watches_count: number
-  parent_author_fid: number | null
-  parent_author_username: string | null
   deleted: boolean
 }
 
